@@ -1,12 +1,20 @@
-# Self-Healing Playwright
+# 🩹 Self-Healing Playwright
 
-> A wrapper around Playwright that, when a selector breaks, tries alternative location strategies before failing the test — and tracks how well it recovers over time.
+<p>
+  <img src="https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Playwright-1.45-2EAD33?logo=playwright&logoColor=white" alt="Playwright" />
+  <img src="https://img.shields.io/badge/tests-self--healing-ff69b4" alt="Self-healing tests" />
+  <img src="https://img.shields.io/badge/license-MIT-yellow" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/made%20with-%E2%9C%A8%20%26%20%E2%98%95-orange" alt="Made with sparkle and coffee" />
+</p>
 
-## Problem
+> A wrapper around Playwright that, when a selector breaks, tries alternative location strategies before failing the test — and tracks how well it recovers over time. Think of it as a tiny safety net for your flaky selectors. 🕸️
+
+## 💥 Problem
 
 End-to-end tests break constantly not because the feature changed, but because a CSS selector or id changed along with the UI. Every markup tweak turns into manual test maintenance, even though the element the test cares about is still there — only its "address" moved.
 
-## Solution
+## 🌱 Solution
 
 `SelfHealingPage` replaces Playwright's regular `page.locator()`. When the original selector fails, `HealingEngine` tries a set of alternative location strategies, in order of reliability, before giving up. Every attempt — successful or not — is recorded by `HealingLog`.
 
@@ -23,7 +31,7 @@ SelfHealingPage
                     └── not found? → fail with a detailed report
 ```
 
-## Technical decisions
+## 🧠 Technical decisions
 
 - **Strategy Pattern** (`SelectorStrategy`): each location technique (aria-label, text, role, etc.) implements the same interface. New strategies can be added without touching `HealingEngine`.
 - **Priority order** — most to least reliable:
@@ -38,7 +46,7 @@ SelfHealingPage
 
 - **`count() === 1` as the acceptance rule**: if a strategy resolves to more than one element, the engine won't risk clicking the wrong one — it moves on to the next strategy instead.
 
-## Results
+## 📊 Results
 
 Sample `reports/healing-log.json`, generated after running the test suite against an intentionally broken selector (`tests/healing.spec.ts`):
 
@@ -60,9 +68,9 @@ Sample `reports/healing-log.json`, generated after running the test suite agains
 }
 ```
 
-The framework recovered 100% of the intentional failures in this run — the log is regenerated (and the rate recalculated) every time the suite runs.
+The framework recovered 100% of the intentional failures in this run 🎉 — the log is regenerated (and the rate recalculated) every time the suite runs.
 
-## Usage
+## 🚀 Usage
 
 ```bash
 npm install
@@ -92,7 +100,7 @@ test('login with self-healing', async ({ page }) => {
 
 `hint.labelHint` gives the strategies a starting point (e.g. the accessible name to look for) when the original selector carries no useful information to fall back on.
 
-## Project structure
+## 🗂️ Project structure
 
 ```
 self-healing-playwright/
@@ -120,7 +128,7 @@ self-healing-playwright/
 └── package.json
 ```
 
-## Roadmap
+## 🗺️ Roadmap
 
 Future directions:
 
@@ -129,6 +137,6 @@ Future directions:
 - **Playwright fixture** — package this as a reusable `test.extend` fixture for any Playwright project
 - **Health dashboard** — a UI to visualize which selectors break most often
 
-## License
+## 📜 License
 
-MIT
+MIT — use it, break it, heal it. 💛
