@@ -1,0 +1,23 @@
+{
+  "name": "self-healing-playwright",
+  "version": "0.1.0",
+  "description": "Wrapper sobre o Playwright que tenta estratégias alternativas de localização quando um seletor quebra, registrando a taxa de recuperação ao longo do tempo.",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "build": "tsc"
+  },
+  "keywords": [
+    "playwright",
+    "self-healing",
+    "e2e-testing",
+    "typescript"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "typescript": "^5.5.0",
+    "ts-node": "^10.9.0"
+  }
+}
