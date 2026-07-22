@@ -3,7 +3,7 @@ import { SelectorStrategy, SelectorContext } from '../types';
 
 export class TextContentStrategy implements SelectorStrategy {
   name = 'text-content';
-  priority = 4;
+  priority = 6;
 
   async locate(page: Page, context: SelectorContext): Promise<Locator | null> {
     const textMatch = context.original.match(/text[=\s"']+([^"'\]]+)/i);

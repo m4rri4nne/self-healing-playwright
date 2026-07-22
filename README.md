@@ -24,6 +24,8 @@ SelfHealingPage
         └── fails? → HealingEngine
               ├── data-testid (fuzzy match)
               ├── aria-label
+              ├── placeholder
+              ├── alt text
               ├── role + name
               ├── visible text
               └── relative position
@@ -40,9 +42,11 @@ SelfHealingPage
   |---|---|---|
   | 1 | `data-testid` (fuzzy) | Semantic attribute, least volatile |
   | 2 | `aria-label` | Accessibility standard, stable |
-  | 3 | `role + name` | Semantic, behavior-based |
-  | 4 | Visible text | Works well for buttons and links |
-  | 5 | Relative position | Last resort, brittle |
+  | 3 | `placeholder` | Stable for form inputs |
+  | 4 | `alt text` | Stable for images |
+  | 5 | `role + name` | Semantic, behavior-based |
+  | 6 | Visible text | Works well for buttons and links |
+  | 7 | Relative position | Last resort, brittle |
 
 - **`count() === 1` as the acceptance rule**: if a strategy resolves to more than one element, the engine won't risk clicking the wrong one — it moves on to the next strategy instead.
 
@@ -113,6 +117,8 @@ self-healing-playwright/
 │   ├── strategies/
 │   │   ├── DataTestIdStrategy.ts
 │   │   ├── AriaLabelStrategy.ts
+│   │   ├── PlaceHolderStrategy.ts
+│   │   ├── AltTextStrategy.ts
 │   │   ├── RoleStrategy.ts
 │   │   ├── TextContentStrategy.ts
 │   │   └── RelativePositionStrategy.ts

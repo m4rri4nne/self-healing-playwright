@@ -16,7 +16,7 @@ const COMMON_ROLES: Role[] = [
 
 export class RoleStrategy implements SelectorStrategy {
   name = 'role';
-  priority = 3;
+  priority = 5;
 
   async locate(page: Page, context: SelectorContext): Promise<Locator | null> {
     const name = context.labelHint ?? this.extractHint(context.original);

@@ -5,7 +5,7 @@ import { SelectorStrategy, SelectorContext } from '../types';
 // on its own: find the type of node we expect right after a known label.
 export class RelativePositionStrategy implements SelectorStrategy {
   name = 'relative-position';
-  priority = 5;
+  priority = 7;
 
   async locate(page: Page, context: SelectorContext): Promise<Locator | null> {
     const hint = context.labelHint;
