@@ -3,8 +3,6 @@ import { test, expect } from '../fixtures';
 const VALID_USER = 'standard_user';
 const VALID_PASSWORD = 'secret_sauce';
 
-test.use({ logPath: './reports/login-healing-log.json' });
-
 test.describe('Login', () => {
   test('logs in successfully with valid credentials', async ({ loginPage }) => {
     await loginPage.goto();

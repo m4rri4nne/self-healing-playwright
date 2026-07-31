@@ -6,8 +6,6 @@ import { CartPage } from '../pages/CartPage';
 const VALID_USER = 'standard_user';
 const VALID_PASSWORD = 'secret_sauce';
 
-test.use({ logPath: './reports/checkout-healing-log.json' });
-
 async function loginAddItemAndGoToCheckout(loginPage: LoginPage, homePage: HomePage, cartPage: CartPage) {
   await loginPage.goto();
   await loginPage.login(VALID_USER, VALID_PASSWORD);

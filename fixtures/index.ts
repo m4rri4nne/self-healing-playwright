@@ -1,7 +1,9 @@
+import * as path from 'path';
 import { test as base } from '@playwright/test';
 import { createSelfHealingPage } from '../src/core/createSelfHealingPage';
 import { SelfHealingPage } from '../src/core/SelfHealingPage';
 import { HealingLog } from '../src/core/HealingLog';
+import { HEALING_TMP_DIR } from './paths';
 import { LoginPage } from '../pages/LoginPage';
 import { HomePage } from '../pages/HomePage';
 import { CartPage } from '../pages/CartPage';
@@ -20,25 +22,27 @@ type Fixtures = {
 };
 
 type WorkerFixtures = {
-  logPath: string;
   log: HealingLog;
 };
 
 export const test = base.extend<Fixtures, WorkerFixtures>({
-  // override per spec file with test.use({ logPath: '...' })
-  logPath: ['./reports/healing-log.json', { option: true, scope: 'worker' }],
-
-  // one HealingLog per spec file, saved once all its tests have run
+  // one HealingLog per worker process, written to a private temp file.
+  // fixtures/globalTeardown.ts merges every worker's file into a single
+  // reports/healing-log.json once the whole run finishes.
   log: [
-    async ({ logPath }, use) => {
-      const log = new HealingLog(logPath);
+    async ({}, use, workerInfo) => {
+      const log = new HealingLog(path.join(HEALING_TMP_DIR, `worker-${workerInfo.workerIndex}.json`));
       await use(log);
-      log.save();
+      log.save(/* quiet */ true);
     },
     { scope: 'worker' },
   ],
 
-  shPage: async ({ page, log }, use) => {
+  shPage: async ({ page, log }, use, testInfo) => {
+    log.setTestContext({
+      testName: testInfo.titlePath.slice(1).join(' > '),
+      specFile: path.relative(process.cwd(), testInfo.file).replace(/\\/g, '/'),
+    });
     await use(createSelfHealingPage(page, log));
   },
 

@@ -52,7 +52,7 @@ SelfHealingPage
 
 ## 📊 Results
 
-Sample `reports/healing-log.json`, generated after running the test suite against an intentionally broken selector (`tests/healing.spec.ts`):
+A single `reports/healing-log.json`, combining every spec file and worker from the run, is (re)generated each time the suite runs:
 
 ```json
 {
@@ -62,6 +62,8 @@ Sample `reports/healing-log.json`, generated after running the test suite agains
   "healingRate": "100.0%",
   "entries": [
     {
+      "testName": "should heal a broken selector via aria-label",
+      "specFile": "tests/healing.spec.ts",
       "healed": true,
       "strategyUsed": "aria-label",
       "newSelector": "#wrong-submit-id",
@@ -72,7 +74,15 @@ Sample `reports/healing-log.json`, generated after running the test suite agains
 }
 ```
 
-The framework recovered 100% of the intentional failures in this run 🎉 — the log is regenerated (and the rate recalculated) every time the suite runs.
+The framework recovered 100% of the intentional failures in this run 🎉 — the log is regenerated (and the rate recalculated) every time the suite runs. `testName` and `specFile` on each entry make it easy to group/pivot the file into a dashboard.
+
+### How the combined log is produced
+
+Playwright runs spec files across multiple worker processes, so results can't just be accumulated in one in-memory object. Instead:
+
+1. Each worker gets its own `HealingLog` (the `log` fixture in [`fixtures/index.ts`](fixtures/index.ts)), writing to a private file under `reports/.healing-tmp/`.
+2. [`fixtures/globalSetup.ts`](fixtures/globalSetup.ts) wipes that temp folder before the run starts, so a previous (or aborted) run never leaks in.
+3. [`fixtures/globalTeardown.ts`](fixtures/globalTeardown.ts) runs once after every worker finishes, merges all the temp files into `reports/healing-log.json`, and deletes the temp folder.
 
 ## 🚀 Usage
 
@@ -84,8 +94,6 @@ npm test
 
 ```typescript
 import { test, expect } from '../fixtures';
-
-test.use({ logPath: './reports/login-healing-log.json' });
 
 test('login with self-healing', async ({ page, loginPage }) => {
   await page.goto('https://example.com/login');
@@ -101,8 +109,8 @@ test('login with self-healing', async ({ page, loginPage }) => {
 
 [`fixtures/index.ts`](fixtures/index.ts) extends Playwright's `test` with:
 
-- `shPage` — a `SelfHealingPage` wired to a per-spec-file `HealingLog`.
-- `log` — the underlying `HealingLog` (worker-scoped, saved once after all tests in the file run). Override where it writes with `test.use({ logPath: '...' })`.
+- `shPage` — a `SelfHealingPage` wired to the worker's `HealingLog`, automatically tagging every entry with the current test name and spec file.
+- `log` — the underlying worker-scoped `HealingLog`; see [How the combined log is produced](#how-the-combined-log-is-produced) for how per-worker logs become one report.
 - One fixture per page object (`loginPage`, `homePage`, `cartPage`, `checkoutPage`, `demoLoginFormPage`, `demoButtonPage`), each pre-built with `page` and `shPage`.
 
 Page objects live in [`pages/`](pages/) and expose selectors + actions through `shPage`, so any selector they use benefits from self-healing automatically.
@@ -135,7 +143,10 @@ self-healing-playwright/
 │   ├── DemoLoginFormPage.ts
 │   └── DemoButtonPage.ts
 ├── fixtures/
-│   └── index.ts                     # test.extend: log + page object fixtures
+│   ├── index.ts                     # test.extend: log + page object fixtures
+│   ├── paths.ts                     # shared temp-dir / report-path constants
+│   ├── globalSetup.ts               # clears reports/.healing-tmp/ before the run
+│   └── globalTeardown.ts            # merges per-worker logs into one report
 ├── tests/
 │   ├── login.spec.ts
 │   ├── home.spec.ts

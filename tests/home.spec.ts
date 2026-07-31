@@ -5,8 +5,6 @@ import { HomePage } from '../pages/HomePage';
 const VALID_USER = 'standard_user';
 const VALID_PASSWORD = 'secret_sauce';
 
-test.use({ logPath: './reports/home-healing-log.json' });
-
 async function login(loginPage: LoginPage, homePage: HomePage) {
   await loginPage.goto();
   await loginPage.login(VALID_USER, VALID_PASSWORD);

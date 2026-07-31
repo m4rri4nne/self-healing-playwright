@@ -20,4 +20,5 @@ export interface HealingResult {
   originalSelector: string;
   timestamp: string;
   testName?: string;
+  specFile?: string;
 }
