@@ -6,6 +6,7 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
+    "report": "ts-node scripts/report.ts",
     "build": "tsc"
   },
   "keywords": [

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 reports/*healing-log.json
+reports/healing-report.html
 reports/.healing-tmp/
 test-results/
 playwright-report/

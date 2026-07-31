@@ -83,6 +83,23 @@ Playwright runs spec files across multiple worker processes, so results can't ju
 1. Each worker gets its own `HealingLog` (the `log` fixture in [`fixtures/index.ts`](fixtures/index.ts)), writing to a private file under `reports/.healing-tmp/`.
 2. [`fixtures/globalSetup.ts`](fixtures/globalSetup.ts) wipes that temp folder before the run starts, so a previous (or aborted) run never leaks in.
 3. [`fixtures/globalTeardown.ts`](fixtures/globalTeardown.ts) runs once after every worker finishes, merges all the temp files into `reports/healing-log.json`, and deletes the temp folder.
+4. It then calls [`fixtures/generateHealingReport.ts`](fixtures/generateHealingReport.ts), which renders `reports/healing-log.json` into a visual `reports/healing-report.html`.
+
+### 📈 HTML report
+
+`reports/healing-report.html` is regenerated after every `npm test` run — open it in a browser to see:
+
+- KPI tiles (total failures, healed, not healed, healing rate)
+- A healed-vs-not-healed breakdown
+- **Failures by spec file** and **healing strategy usage** (which strategy saves the day most often)
+- The top 10 most frequently broken selectors — the ones most worth fixing for real
+- A full, sortable-by-eye table of every failure (test, spec file, selector, strategy, status, timestamp), newest first
+
+Every chart has a "Table view" toggle for an accessible, copy-pasteable alternative. To regenerate the report without rerunning the suite (e.g. after editing an old `healing-log.json`):
+
+```bash
+npm run report
+```
 
 ## 🚀 Usage
 
@@ -146,7 +163,10 @@ self-healing-playwright/
 │   ├── index.ts                     # test.extend: log + page object fixtures
 │   ├── paths.ts                     # shared temp-dir / report-path constants
 │   ├── globalSetup.ts               # clears reports/.healing-tmp/ before the run
-│   └── globalTeardown.ts            # merges per-worker logs into one report
+│   ├── globalTeardown.ts            # merges per-worker logs into one report
+│   └── generateHealingReport.ts     # renders healing-log.json → healing-report.html
+├── scripts/
+│   └── report.ts                    # `npm run report` — regenerate the HTML report standalone
 ├── tests/
 │   ├── login.spec.ts
 │   ├── home.spec.ts
@@ -155,7 +175,8 @@ self-healing-playwright/
 │   ├── example.spec.ts
 │   └── healing.spec.ts              # tests for the framework itself
 ├── reports/
-│   └── healing-log.json             # generated at runtime
+│   ├── healing-log.json             # generated at runtime
+│   └── healing-report.html          # generated at runtime
 ├── playwright.config.ts
 ├── tsconfig.json
 └── package.json
@@ -167,7 +188,7 @@ Future directions:
 
 - **Healing persistence** — save `healing-log.json` and reuse previously healed selector mappings across runs
 - **HTML snapshots** — capture the DOM around a failed element to feed an AI model that suggests the correct selector
-- **Health dashboard** — a UI to visualize which selectors break most often
+- **Historical trends** — `healing-report.html` currently reflects the latest run only; chart the healing rate across multiple runs over time
 
 ## 📜 License
 

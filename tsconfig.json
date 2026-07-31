@@ -8,6 +8,6 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist"
   },
-  "include": ["src", "tests", "pages", "fixtures"],
+  "include": ["src", "tests", "pages", "fixtures", "scripts"],
   "exclude": ["node_modules", "dist"]
 }
