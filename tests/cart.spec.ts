@@ -1,54 +1,49 @@
-import { test, expect, Page } from '@playwright/test';
-import { createSelfHealingPage } from '../src/core/createSelfHealingPage';
-import { SelfHealingPage } from '../src/core/SelfHealingPage';
-import { HealingLog } from '../src/core/HealingLog';
+import { test, expect } from '../fixtures';
+import { LoginPage } from '../pages/LoginPage';
+import { HomePage } from '../pages/HomePage';
+import { CartPage } from '../pages/CartPage';
 
-const BASE_URL = 'https://www.saucedemo.com/';
+const VALID_USER = 'standard_user';
+const VALID_PASSWORD = 'secret_sauce';
 
-const log = new HealingLog('./reports/cart-healing-log.json');
-test.afterAll(() => log.save());
+test.use({ logPath: './reports/cart-healing-log.json' });
 
-async function loginAndAddItem(page: Page): Promise<SelfHealingPage> {
-  const shPage = createSelfHealingPage(page, log);
-  await page.goto(BASE_URL);
-  await shPage.fill('[data-test="username"]', 'standard_user');
-  await shPage.fill('[data-test="password"]', 'secret_sauce');
-  await shPage.click('[data-test="login-button"]');
-  await page.waitForSelector('[data-test="title"]');
+async function loginAndAddItem(loginPage: LoginPage, homePage: HomePage) {
+  await loginPage.goto();
+  await loginPage.login(VALID_USER, VALID_PASSWORD);
+  await homePage.waitUntilLoaded();
 
-  await shPage.click('[data-test="add-to-cart-sauce-labs-backpack"]');
-  await shPage.click('[data-test="shopping-cart-link"]');
-  return shPage;
+  await homePage.addBackpackToCart();
+  await homePage.goToCart();
 }
 
 test.describe('Your Cart', () => {
-  test('lists the added item and allows navigating to checkout', async ({ page }) => {
-    await loginAndAddItem(page);
+  test('lists the added item and allows navigating to checkout', async ({ loginPage, homePage, cartPage, checkoutPage }) => {
+    await loginAndAddItem(loginPage, homePage);
 
-    const cartItem = page.locator('[data-test="inventory-item"]');
-    await expect(cartItem).toHaveCount(1);
-    await expect(cartItem.locator('[data-test="inventory-item-name"]')).toHaveText('Sauce Labs Backpack');
+    await expect(cartPage.items).toHaveCount(1);
+    await expect(cartPage.itemNames).toHaveText('Sauce Labs Backpack');
 
-    await page.click('[data-test="checkout"]');
-    await expect(page.locator('[data-test="firstName"]')).toBeVisible();
+    await cartPage.goToCheckout();
+    await expect(checkoutPage.firstNameField).toBeVisible();
   });
 
-  test('removes the item from the cart', async ({ page }) => {
-    const shPage = await loginAndAddItem(page);
+  test('removes the item from the cart', async ({ loginPage, homePage, cartPage }) => {
+    await loginAndAddItem(loginPage, homePage);
 
-    await shPage.click('[data-test="remove-sauce-labs-backpack"]');
-    await expect(page.locator('[data-test="inventory-item"]')).toHaveCount(0);
+    await cartPage.removeBackpack();
+    await expect(cartPage.items).toHaveCount(0);
   });
 });
 
 test.describe('Your Cart — self-healing', () => {
-  test('heals a broken checkout button selector', async ({ page }) => {
-    const shPage = await loginAndAddItem(page);
+  test('heals a broken checkout button selector', async ({ loginPage, homePage, cartPage, checkoutPage, log }) => {
+    await loginAndAddItem(loginPage, homePage);
 
     // this id does not exist — the engine has to recover using the "Checkout" hint
-    await shPage.click('[data-test="wrong-checkout-btn"]', { labelHint: 'Checkout' });
+    await cartPage.goToCheckout('[data-test="wrong-checkout-btn"]', { labelHint: 'Checkout' });
 
-    await expect(page.locator('[data-test="firstName"]')).toBeVisible();
+    await expect(checkoutPage.firstNameField).toBeVisible();
 
     const entries = log.getEntries();
     expect(

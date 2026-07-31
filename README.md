@@ -83,26 +83,29 @@ npm test
 ```
 
 ```typescript
-import { test, expect } from '@playwright/test';
-import { createSelfHealingPage } from '../src/core/createSelfHealingPage';
-import { HealingLog } from '../src/core/HealingLog';
+import { test, expect } from '../fixtures';
 
-const log = new HealingLog();
-test.afterAll(() => log.save());
+test.use({ logPath: './reports/login-healing-log.json' });
 
-test('login with self-healing', async ({ page }) => {
-  const shPage = createSelfHealingPage(page, log);
-
+test('login with self-healing', async ({ page, loginPage }) => {
   await page.goto('https://example.com/login');
-  await shPage.fill('#email', 'user@email.com');
-  await shPage.fill('#password', '123456');
-  await shPage.click('#submit-btn', { labelHint: 'Login' });
+  await loginPage.login('user@email.com', '123456');
 
   await expect(page).toHaveURL('/dashboard');
 });
 ```
 
 `hint.labelHint` gives the strategies a starting point (e.g. the accessible name to look for) when the original selector carries no useful information to fall back on.
+
+### Fixtures & Page Objects
+
+[`fixtures/index.ts`](fixtures/index.ts) extends Playwright's `test` with:
+
+- `shPage` — a `SelfHealingPage` wired to a per-spec-file `HealingLog`.
+- `log` — the underlying `HealingLog` (worker-scoped, saved once after all tests in the file run). Override where it writes with `test.use({ logPath: '...' })`.
+- One fixture per page object (`loginPage`, `homePage`, `cartPage`, `checkoutPage`, `demoLoginFormPage`, `demoButtonPage`), each pre-built with `page` and `shPage`.
+
+Page objects live in [`pages/`](pages/) and expose selectors + actions through `shPage`, so any selector they use benefits from self-healing automatically.
 
 ## 🗂️ Project structure
 
@@ -124,7 +127,20 @@ self-healing-playwright/
 │   │   └── RelativePositionStrategy.ts
 │   └── types/
 │       └── index.ts
+├── pages/                           # Page Objects, actions go through shPage
+│   ├── LoginPage.ts
+│   ├── HomePage.ts
+│   ├── CartPage.ts
+│   ├── CheckoutPage.ts
+│   ├── DemoLoginFormPage.ts
+│   └── DemoButtonPage.ts
+├── fixtures/
+│   └── index.ts                     # test.extend: log + page object fixtures
 ├── tests/
+│   ├── login.spec.ts
+│   ├── home.spec.ts
+│   ├── cart.spec.ts
+│   ├── checkout.spec.ts
 │   ├── example.spec.ts
 │   └── healing.spec.ts              # tests for the framework itself
 ├── reports/
@@ -140,7 +156,6 @@ Future directions:
 
 - **Healing persistence** — save `healing-log.json` and reuse previously healed selector mappings across runs
 - **HTML snapshots** — capture the DOM around a failed element to feed an AI model that suggests the correct selector
-- **Playwright fixture** — package this as a reusable `test.extend` fixture for any Playwright project
 - **Health dashboard** — a UI to visualize which selectors break most often
 
 ## 📜 License

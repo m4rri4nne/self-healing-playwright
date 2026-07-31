@@ -1,97 +1,89 @@
-import { test, expect, Page } from '@playwright/test';
-import { createSelfHealingPage } from '../src/core/createSelfHealingPage';
-import { SelfHealingPage } from '../src/core/SelfHealingPage';
-import { HealingLog } from '../src/core/HealingLog';
+import { test, expect } from '../fixtures';
+import { LoginPage } from '../pages/LoginPage';
+import { HomePage } from '../pages/HomePage';
 
-const BASE_URL = 'https://www.saucedemo.com/';
+const VALID_USER = 'standard_user';
+const VALID_PASSWORD = 'secret_sauce';
 
-const log = new HealingLog('./reports/home-healing-log.json');
-test.afterAll(() => log.save());
+test.use({ logPath: './reports/home-healing-log.json' });
 
-async function login(page: Page): Promise<SelfHealingPage> {
-  const shPage = createSelfHealingPage(page, log);
-  await page.goto(BASE_URL);
-  await shPage.fill('[data-test="username"]', 'standard_user');
-  await shPage.fill('[data-test="password"]', 'secret_sauce');
-  await shPage.click('[data-test="login-button"]');
-  await page.waitForSelector('[data-test="title"]');
-  return shPage;
+async function login(loginPage: LoginPage, homePage: HomePage) {
+  await loginPage.goto();
+  await loginPage.login(VALID_USER, VALID_PASSWORD);
+  await homePage.waitUntilLoaded();
 }
 
 test.describe('Home / Inventory', () => {
-  test('lists the products on the inventory page', async ({ page }) => {
-    await login(page);
+  test('lists the products on the inventory page', async ({ loginPage, homePage }) => {
+    await login(loginPage, homePage);
 
-    const items = page.locator('[data-test="inventory-item"]');
-    await expect(items).toHaveCount(6);
+    await expect(homePage.items).toHaveCount(6);
 
-    for (const item of await items.all()) {
+    for (const item of await homePage.items.all()) {
       await expect(item.locator('[data-test="inventory-item-name"]')).toBeVisible();
       await expect(item.locator('[data-test="inventory-item-desc"]')).toBeVisible();
       await expect(item.locator('[data-test="inventory-item-price"]')).toBeVisible();
     }
   });
 
-  test('adds and removes an item from the cart', async ({ page }) => {
-    const shPage = await login(page);
+  test('adds and removes an item from the cart', async ({ loginPage, homePage }) => {
+    await login(loginPage, homePage);
 
-    await shPage.click('[data-test="add-to-cart-sauce-labs-backpack"]');
-    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
+    await homePage.addBackpackToCart();
+    await expect(homePage.cartBadge).toHaveText('1');
 
-    await shPage.click('[data-test="remove-sauce-labs-backpack"]');
-    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveCount(0);
-    await expect(page.locator('[data-test="add-to-cart-sauce-labs-backpack"]')).toBeVisible();
+    await homePage.removeBackpackFromCart();
+    await expect(homePage.cartBadge).toHaveCount(0);
+    await expect(homePage.addBackpackButtonLocator).toBeVisible();
   });
 
   test.describe('Sort products', () => {
-    test('sorts by name A to Z', async ({ page }) => {
-      await login(page);
-      await page.selectOption('[data-test="product-sort-container"]', { label: 'Name (A to Z)' });
+    test('sorts by name A to Z', async ({ loginPage, homePage }) => {
+      await login(loginPage, homePage);
+      await homePage.sortBy('Name (A to Z)');
 
-      const names = await page.locator('[data-test="inventory-item-name"]').allTextContents();
+      const names = await homePage.itemNameTexts();
       expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     });
 
-    test('sorts by name Z to A', async ({ page }) => {
-      await login(page);
-      await page.selectOption('[data-test="product-sort-container"]', { label: 'Name (Z to A)' });
+    test('sorts by name Z to A', async ({ loginPage, homePage }) => {
+      await login(loginPage, homePage);
+      await homePage.sortBy('Name (Z to A)');
 
-      const names = await page.locator('[data-test="inventory-item-name"]').allTextContents();
+      const names = await homePage.itemNameTexts();
       expect(names).toEqual([...names].sort((a, b) => b.localeCompare(a)));
     });
 
-    test('sorts by price low to high', async ({ page }) => {
-      await login(page);
-      await page.selectOption('[data-test="product-sort-container"]', { label: 'Price (low to high)' });
+    test('sorts by price low to high', async ({ loginPage, homePage }) => {
+      await login(loginPage, homePage);
+      await homePage.sortBy('Price (low to high)');
 
-      const prices = (await page.locator('[data-test="inventory-item-price"]').allTextContents())
-        .map(p => parseFloat(p.replace('$', '')));
+      const prices = await homePage.itemPriceValues();
       expect(prices).toEqual([...prices].sort((a, b) => a - b));
     });
 
-    test('sorts by price high to low', async ({ page }) => {
-      await login(page);
-      await page.selectOption('[data-test="product-sort-container"]', { label: 'Price (high to low)' });
+    test('sorts by price high to low', async ({ loginPage, homePage }) => {
+      await login(loginPage, homePage);
+      await homePage.sortBy('Price (high to low)');
 
-      const prices = (await page.locator('[data-test="inventory-item-price"]').allTextContents())
-        .map(p => parseFloat(p.replace('$', '')));
+      const prices = await homePage.itemPriceValues();
       expect(prices).toEqual([...prices].sort((a, b) => b - a));
     });
   });
 });
 
 test.describe('Home — self-healing', () => {
-  test('heals a broken remove-from-cart selector', async ({ page }) => {
-    const shPage = await login(page);
+  test('heals a broken remove-from-cart selector', async ({ loginPage, homePage, log }) => {
+    await login(loginPage, homePage);
 
-    await shPage.click('[data-test="add-to-cart-sauce-labs-backpack"]');
-    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
+    await homePage.addBackpackToCart();
+    await expect(homePage.cartBadge).toHaveText('1');
 
     // this id does not exist — the engine has to recover using the "Remove" hint
-    await shPage.click('[data-test="wrong-remove-btn"]', { labelHint: 'Remove' });
+    await homePage.removeBackpackFromCart('[data-test="wrong-remove-btn"]', { labelHint: 'Remove' });
 
-    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveCount(0);
-    await expect(page.locator('[data-test="add-to-cart-sauce-labs-backpack"]')).toBeVisible();
+    await expect(homePage.cartBadge).toHaveCount(0);
+    await expect(homePage.addBackpackButtonLocator).toBeVisible();
 
     const entries = log.getEntries();
     expect(
