@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { HealingResult } from '../src/types';
-import { HEALING_REPORT_JSON_PATH, HEALING_REPORT_HTML_PATH } from './paths';
+import { HEALING_REPORT_JSON_PATH, HEALING_REPORT_HTML_PATH, HEALING_HISTORY_PATH } from './paths';
 
 interface HealingReportData {
   totalAttempts: number;
@@ -70,6 +70,130 @@ function renderBarChart(title: string, data: [string, number][], id: string): st
   </figure>`;
 }
 
+interface MonthlyPoint {
+  key: string; // YYYY-MM
+  label: string; // "Jul 2026"
+  total: number;
+  healed: number;
+  rate: number; // 0-100
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}
+
+function buildMonthlyTrend(entries: HealingResult[]): MonthlyPoint[] {
+  const buckets = new Map<string, { total: number; healed: number }>();
+
+  for (const entry of entries) {
+    const key = entry.timestamp.slice(0, 7); // YYYY-MM
+    const bucket = buckets.get(key) ?? { total: 0, healed: 0 };
+    bucket.total += 1;
+    if (entry.healed) bucket.healed += 1;
+    buckets.set(key, bucket);
+  }
+
+  return [...buckets.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, { total, healed }]) => ({
+      key,
+      label: monthLabel(key),
+      total,
+      healed,
+      rate: total > 0 ? (healed / total) * 100 : 0,
+    }));
+}
+
+// line chart: one series (healing rate), sequential blue, 2px line with rounded
+// join/cap, >=8px markers with a 2px surface-color ring, value labeled at the end
+// only — the rest ride the per-point hover tooltip and the table-view toggle
+function renderTrendChart(data: MonthlyPoint[], id: string): string {
+  if (data.length === 0) {
+    return `
+    <figure class="card" id="${id}">
+      <figcaption class="card-title"><span>Healing rate trend (by month)</span></figcaption>
+      <p class="empty-state">No history yet — keep running the suite across more than one month to see a trend.</p>
+    </figure>`;
+  }
+
+  const width = 720;
+  const height = 220;
+  const padLeft = 38;
+  const padRight = 16;
+  const padTop = 30; // headroom above the 100% gridline for the end-of-line value label
+  const padBottom = 26;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  const xFor = (i: number) => (data.length === 1 ? padLeft + plotW / 2 : padLeft + (i / (data.length - 1)) * plotW);
+  const yFor = (rate: number) => padTop + (1 - rate / 100) * plotH;
+
+  const points = data.map((d, i) => ({ ...d, x: xFor(i), y: yFor(d.rate) }));
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  const gridLines = [0, 50, 100]
+    .map(tick => {
+      const y = yFor(tick);
+      return `
+      <line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${width - padRight}" y2="${y.toFixed(1)}" class="trend-grid" />
+      <text x="${(padLeft - 8).toFixed(1)}" y="${(y + 3).toFixed(1)}" class="trend-axis-label" text-anchor="end">${tick}%</text>`;
+    })
+    .join('');
+
+  // first/last point labels anchor inward (start/end) so they never overflow the
+  // viewBox edge; interior points stay centered on their point
+  const anchorFor = (i: number) => (i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle');
+  const xLabels = points
+    .map(
+      (p, i) =>
+        `<text x="${p.x.toFixed(1)}" y="${height - 6}" class="trend-axis-label" text-anchor="${anchorFor(i)}">${escapeHtml(p.label)}</text>`
+    )
+    .join('');
+
+  const markers = points
+    .map(
+      p => `
+      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" class="trend-marker">
+        <title>${escapeHtml(p.label)}: ${p.rate.toFixed(1)}% healed (${p.healed}/${p.total})</title>
+      </circle>`
+    )
+    .join('');
+
+  const last = points[points.length - 1];
+  const lastLabelAnchor = last.x > width - padRight - 60 ? 'end' : 'start';
+  const lastLabelX = lastLabelAnchor === 'end' ? last.x - 8 : last.x + 8;
+  const lastLabelY = Math.max(12, last.y - 10);
+  const endLabel = `<text x="${lastLabelX.toFixed(1)}" y="${lastLabelY.toFixed(1)}" text-anchor="${lastLabelAnchor}" class="trend-value-label">${last.rate.toFixed(1)}%</text>`;
+
+  const tableRows = data
+    .map(
+      d => `<tr><td>${escapeHtml(d.label)}</td><td>${d.healed}</td><td>${d.total - d.healed}</td><td>${d.rate.toFixed(1)}%</td></tr>`
+    )
+    .join('');
+
+  return `
+  <figure class="card" id="${id}">
+    <figcaption class="card-title">
+      <span>Healing rate trend (by month)</span>
+      <button class="toggle-btn" data-target="${id}" onclick="toggleView(this)">Table view</button>
+    </figcaption>
+    <div class="chart-view">
+      <svg viewBox="0 0 ${width} ${height}" class="trend-svg" role="img" aria-label="Healing rate trend by month">
+        ${gridLines}
+        <path d="${linePath}" class="trend-line" />
+        ${markers}
+        ${endLabel}
+        ${xLabels}
+      </svg>
+    </div>
+    <table class="table-view hidden">
+      <thead><tr><th>Month</th><th>Healed</th><th>Not healed</th><th>Healing rate</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </figure>`;
+}
+
 function renderEmptyReport(): string {
   return `<!doctype html>
 <html lang="en">
@@ -88,12 +212,13 @@ function renderEmptyReport(): string {
 </html>`;
 }
 
-function renderReport(data: HealingReportData): string {
+function renderReport(data: HealingReportData, history: HealingResult[]): string {
   const { entries, healed, failed, totalAttempts: total } = data;
 
   const bySpecFile = countBy(entries, e => e.specFile ?? 'unknown');
   const byStrategy = countBy(entries.filter(e => e.healed), e => e.strategyUsed ?? 'unknown');
   const bySelector = countBy(entries, e => e.originalSelector).slice(0, 10);
+  const monthlyTrend = buildMonthlyTrend(history.length > 0 ? history : entries);
 
   const byRecency = [...entries].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -229,6 +354,14 @@ function renderReport(data: HealingReportData): string {
   }
   .bar-value { font-size: 12px; color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
 
+  .trend-svg { width: 100%; height: auto; display: block; }
+  .trend-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .trend-grid { stroke: var(--gridline); stroke-width: 1; }
+  .trend-axis-label { fill: var(--text-muted); font-size: 10px; }
+  .trend-line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .trend-marker { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+  .trend-value-label { fill: var(--text-secondary); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
   .status-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; background: var(--gridline); }
   .status-seg-good { background: var(--status-good); }
   .status-seg-critical { background: var(--status-critical); }
@@ -305,6 +438,8 @@ function renderReport(data: HealingReportData): string {
       }
     </section>
 
+    ${renderTrendChart(monthlyTrend, 'chart-trend')}
+
     <div class="grid-2">
       ${renderBarChart('Failures by spec file', bySpecFile, 'chart-spec')}
       ${renderBarChart('Healing strategy usage', byStrategy, 'chart-strategy')}
@@ -347,7 +482,8 @@ function renderReport(data: HealingReportData): string {
 
 export function generateHealingReport(
   jsonPath: string = HEALING_REPORT_JSON_PATH,
-  outputPath: string = HEALING_REPORT_HTML_PATH
+  outputPath: string = HEALING_REPORT_HTML_PATH,
+  historyPath: string = HEALING_HISTORY_PATH
 ): string {
   const dir = path.dirname(outputPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -358,6 +494,10 @@ export function generateHealingReport(
   }
 
   const data: HealingReportData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
-  fs.writeFileSync(outputPath, renderReport(data));
+  const history: HealingResult[] = fs.existsSync(historyPath)
+    ? JSON.parse(fs.readFileSync(historyPath, 'utf-8'))
+    : [];
+
+  fs.writeFileSync(outputPath, renderReport(data, history));
   return outputPath;
 }

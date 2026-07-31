@@ -4,6 +4,7 @@ import { HealingLog } from '../src/core/HealingLog';
 import { HealingResult } from '../src/types';
 import { HEALING_TMP_DIR, HEALING_REPORT_JSON_PATH } from './paths';
 import { generateHealingReport } from './generateHealingReport';
+import { appendHealingHistory } from './appendHealingHistory';
 
 // merges every worker's private log (written by the `log` fixture) into a
 // single reports/healing-log.json covering the whole test run, then renders
@@ -25,6 +26,7 @@ export default async function globalTeardown() {
 
   combined.save();
   fs.rmSync(HEALING_TMP_DIR, { recursive: true, force: true });
+  appendHealingHistory(combined.getEntries());
 
   const reportPath = generateHealingReport();
   console.log(`[SelfHealing] HTML report saved to ${reportPath}`);

@@ -83,7 +83,8 @@ Playwright runs spec files across multiple worker processes, so results can't ju
 1. Each worker gets its own `HealingLog` (the `log` fixture in [`fixtures/index.ts`](fixtures/index.ts)), writing to a private file under `reports/.healing-tmp/`.
 2. [`fixtures/globalSetup.ts`](fixtures/globalSetup.ts) wipes that temp folder before the run starts, so a previous (or aborted) run never leaks in.
 3. [`fixtures/globalTeardown.ts`](fixtures/globalTeardown.ts) runs once after every worker finishes, merges all the temp files into `reports/healing-log.json`, and deletes the temp folder.
-4. It then calls [`fixtures/generateHealingReport.ts`](fixtures/generateHealingReport.ts), which renders `reports/healing-log.json` into a visual `reports/healing-report.html`.
+4. It also *appends* those same entries to `reports/healing-history.json` (via [`fixtures/appendHealingHistory.ts`](fixtures/appendHealingHistory.ts)) — the one file that isn't overwritten every run, so it accumulates across as many `npm test` runs as you've done, and is what the monthly trend chart reads.
+5. It then calls [`fixtures/generateHealingReport.ts`](fixtures/generateHealingReport.ts), which renders `reports/healing-log.json` (this run) and `reports/healing-history.json` (every run) into a visual `reports/healing-report.html`.
 
 ### 📈 HTML report
 
@@ -91,6 +92,7 @@ Playwright runs spec files across multiple worker processes, so results can't ju
 
 - KPI tiles (total failures, healed, not healed, healing rate)
 - A healed-vs-not-healed breakdown
+- **Healing rate trend, by month** — a line chart built from `reports/healing-history.json`; each point is one calendar month's healed-rate across every run recorded so far
 - **Failures by spec file** and **healing strategy usage** (which strategy saves the day most often)
 - The top 10 most frequently broken selectors — the ones most worth fixing for real
 - A full, sortable-by-eye table of every failure (test, spec file, selector, strategy, status, timestamp), newest first
@@ -100,6 +102,14 @@ Every chart has a "Table view" toggle for an accessible, copy-pasteable alternat
 ```bash
 npm run report
 ```
+
+A real test run only produces a handful of uniform entries on a single day, which makes it hard to eyeball how the report handles more spec files, strategies, a lower healing rate, or — since it needs data spread across actual calendar months — the trend line. [`scripts/generateMockData.ts`](scripts/generateMockData.ts) writes a richer, deterministic dataset spanning 6 months (varied spec files, "chronic offender" selectors, all 7 strategies, a healing rate that improves month over month) to both `reports/healing-log.json` (the latest month, as a real run would leave it) and `reports/healing-history.json` (the full 6 months, for the trend line), then renders the report — handy while iterating on `generateHealingReport.ts` itself:
+
+```bash
+npm run mock-data
+```
+
+(`npm test` overwrites `reports/healing-log.json` with real data on its next run, so this is safe to run anytime.)
 
 ## 🚀 Usage
 
@@ -164,9 +174,11 @@ self-healing-playwright/
 │   ├── paths.ts                     # shared temp-dir / report-path constants
 │   ├── globalSetup.ts               # clears reports/.healing-tmp/ before the run
 │   ├── globalTeardown.ts            # merges per-worker logs into one report
-│   └── generateHealingReport.ts     # renders healing-log.json → healing-report.html
+│   ├── appendHealingHistory.ts      # appends this run's entries to healing-history.json
+│   └── generateHealingReport.ts     # renders healing-log.json + healing-history.json → healing-report.html
 ├── scripts/
-│   └── report.ts                    # `npm run report` — regenerate the HTML report standalone
+│   ├── report.ts                    # `npm run report` — regenerate the HTML report standalone
+│   └── generateMockData.ts          # `npm run mock-data` — richer sample data for report design work
 ├── tests/
 │   ├── login.spec.ts
 │   ├── home.spec.ts
@@ -175,7 +187,8 @@ self-healing-playwright/
 │   ├── example.spec.ts
 │   └── healing.spec.ts              # tests for the framework itself
 ├── reports/
-│   ├── healing-log.json             # generated at runtime
+│   ├── healing-log.json             # generated at runtime — this run only
+│   ├── healing-history.json         # generated at runtime — accumulates across every run
 │   └── healing-report.html          # generated at runtime
 ├── playwright.config.ts
 ├── tsconfig.json
@@ -187,8 +200,7 @@ self-healing-playwright/
 Future directions:
 
 - **Healing persistence** — save `healing-log.json` and reuse previously healed selector mappings across runs
-- **HTML snapshots** — capture the DOM around a failed element to feed an AI model that suggests the correct selector
-- **Historical trends** — `healing-report.html` currently reflects the latest run only; chart the healing rate across multiple runs over time
+- **History pruning** — `healing-history.json` grows forever; add a retention window (e.g. keep the last 12 months) once real usage makes that a concern
 
 ## 📜 License
 

@@ -7,6 +7,7 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "report": "ts-node scripts/report.ts",
+    "mock-data": "ts-node scripts/generateMockData.ts",
     "build": "tsc"
   },
   "keywords": [
